@@ -1,11 +1,7 @@
 #!/usr/bin/python2
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import pickle
-import seaborn as sns
 import os.path
-import corner
 import copy
 import sys
 
@@ -66,17 +62,19 @@ def cleanLocMin(filename):
 outdir = "doubleMADsTrimmed"
 pwd = os.getcwd()
 outdir = os.path.join(pwd,outdir)
+try:
+    os.stat(outdir)
+except:
+    os.mkdir(outdir)
 
 filenames = sys.argv[1:]
 i = 0
 numfiles = len(filenames)
 for file in filenames:
     print("["+str(i)+"/"+str(numfiles)+"]("+str(int(float(i)/float(numfiles)*100))+"%) "+os.path.basename(os.path.dirname(os.path.abspath(file))) + " " + os.path.basename(file))
-    samples_IR = cleanLocMin(file)
-
-    print("trying to save to:" + os.path.join(outdir,os.path.basename(file))
+    #print("trying to save to:" + os.path.join(outdir,os.path.basename(file)))
+    savePickle(cleanLocMin(file), os.path.join(outdir,os.path.basename(file)))
     i += 1
-
 
 ##This takes the full paths specified in the arguments and does two things
 ##First, it parses out the type of model it is, i.e. (1,0) (3,2) etc.
