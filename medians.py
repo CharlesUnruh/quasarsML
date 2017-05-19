@@ -28,6 +28,14 @@ def savePickle(pkl,filename):
     file.close()
     return rval
 
+def samplesPlot(filename):
+    coeff = openPickle(filename)
+    ndims = coeff.shape[0]
+    nwalkers = coeff.shape[1]
+    nsteps = coeff.shape[2]
+    samples = np.swapaxes(copy.copy( coeff[:, :, nsteps/2:]).reshape((ndims, -1), order='F'), axis1=0, axis2=1)
+    return samples
+
 def doubleMADsfromMedian(y,thresh=4):
     # warning: this function does not check for NAs
     # nor does it address issues when
@@ -42,22 +50,24 @@ def doubleMADsfromMedian(y,thresh=4):
     modified_z_score[y == m] = 0
     return np.where(modified_z_score < thresh)[0]
 
+def getMedians(filename):
+    medians = []
+    samples = openPickle(filename)
+    for i in range(len(samples[0])):
+        samples = sorted(samples, key=lambda x: float(x[i]))
+        medians.append(samples[int(len(samples)/2)])
+    return medians
+
 def cleanLocMin(filename):
-    coeff = openPickle(filename)
-    ndims = coeff.shape[0]
-    nwalkers = coeff.shape[1]
-    nsteps = coeff.shape[2]
-    samples = np.swapaxes(copy.copy( coeff[:, :, nsteps/2:]).reshape((ndims, -1), order='F'), axis1=0, axis2=1)
+    samples = samplesPlot(filename)
     for i in range(3):
         #print(len(samples[:,i]))
         keep_indecies = doubleMADsfromMedian(samples[:,i],thresh=3.0)
         samples = samples[keep_indecies,:]
-    print(samples)
-    print(coeff)
     return samples
 
 
-outdir = "doubleMADsTrimmed"
+outdir = "medians"
 pwd = os.getcwd()
 outdir = os.path.join(pwd,outdir)
 try:
@@ -71,9 +81,11 @@ numfiles = len(filenames)
 for file in filenames:
     print("["+str(i)+"/"+str(numfiles)+"]("+str(int(float(i)/float(numfiles)*100))+"%) "+os.path.basename(os.path.dirname(os.path.abspath(file))) + " " + os.path.basename(file))
     #print("trying to save to:" + os.path.join(outdir,os.path.basename(file)))
-    #savePickle(cleanLocMin(file), os.path.join(outdir,os.path.basename(file)))
-    cleanLocMin(file)
+    medians = getMedians(file)
+    savePickle(medians, os.path.join(outdir,os.path.basename(file)))
     i += 1
+
+
 
 ##This takes the full paths specified in the arguments and does two things
 ##First, it parses out the type of model it is, i.e. (1,0) (3,2) etc.

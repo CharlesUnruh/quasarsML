@@ -1,9 +1,16 @@
 #!/usr/bin/python2
+import math
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import pickle
+import seaborn as sns
 import os.path
+import corner
 import copy
 import sys
+
+
 
 #Set this to True for some debug output
 debug = False
@@ -22,11 +29,13 @@ def openPickle(filename):
     t_pkl.close()
     return params
 
-def savePickle(pkl,filename):
-    file = open(filename, 'wb')
-    rval = pickle.dump(pkl,file)
-    file.close()
-    return rval
+def samplesPlot(filename):
+    coeff = openPickle(filename)
+    ndims = coeff.shape[0]
+    nwalkers = coeff.shape[1]
+    nsteps = coeff.shape[2]
+    samples = np.swapaxes(copy.copy( coeff[:, :, nsteps/2:]).reshape((ndims, -1), order='F'), axis1=0, axis2=1)
+    return samples
 
 def doubleMADsfromMedian(y,thresh=4):
     # warning: this function does not check for NAs
@@ -43,21 +52,15 @@ def doubleMADsfromMedian(y,thresh=4):
     return np.where(modified_z_score < thresh)[0]
 
 def cleanLocMin(filename):
-    coeff = openPickle(filename)
-    ndims = coeff.shape[0]
-    nwalkers = coeff.shape[1]
-    nsteps = coeff.shape[2]
-    samples = np.swapaxes(copy.copy( coeff[:, :, nsteps/2:]).reshape((ndims, -1), order='F'), axis1=0, axis2=1)
+    samples = samplesPlot(filename)
     for i in range(3):
         #print(len(samples[:,i]))
         keep_indecies = doubleMADsfromMedian(samples[:,i],thresh=3.0)
         samples = samples[keep_indecies,:]
-    print(samples)
-    print(coeff)
     return samples
 
 
-outdir = "doubleMADsTrimmed"
+outdir = "median_plots"
 pwd = os.getcwd()
 outdir = os.path.join(pwd,outdir)
 try:
@@ -66,14 +69,63 @@ except:
     os.mkdir(outdir)
 
 filenames = sys.argv[1:]
+labels_timescales = [r"$\tau_1$",r"$\tau_2$",r"$\Sigma_{SF}$",r"$\tau_{MA}$"]
+labels_chains = [r"$\alpha_1$", r"$\alpha_2$", r"$\beta_0$",r"$\beta_1$"]
 i = 0
 numfiles = len(filenames)
+
+plt_labels = labels_timescales
+if "Chains" in filenames[0]:
+    plt_labels = labels_chains
+
+samples_a1 = []
+samples_a2 = []
+samples_b1 = []
+samples_b2 = []
+
 for file in filenames:
     print("["+str(i)+"/"+str(numfiles)+"]("+str(int(float(i)/float(numfiles)*100))+"%) "+os.path.basename(os.path.dirname(os.path.abspath(file))) + " " + os.path.basename(file))
-    #print("trying to save to:" + os.path.join(outdir,os.path.basename(file)))
-    #savePickle(cleanLocMin(file), os.path.join(outdir,os.path.basename(file)))
-    cleanLocMin(file)
+    current = openPickle(file)
+    samples_a1.append([ math.log(x) for x in current[0] ])
+    samples_a2.append([ math.log(x) for x in current[1] ])
+    samples_b1.append([ math.log(x) for x in current[2] ])
+    samples_b2.append([ math.log(x) for x in current[3] ])
     i += 1
+
+fig = corner.corner(samples_a1, labels=plt_labels,
+                    quantiles=[0.16, 0.5, 0.84],
+                    show_titles=True, title_fmt=".2g", title_kwargs={"fontsize": 15})
+fig.savefig(os.path.join(outdir,"alpha1_medians_together.png"))
+plt.close(fig)
+
+fig = corner.corner(samples_a2, labels=plt_labels,
+                    quantiles=[0.16, 0.5, 0.84],
+                    show_titles=True, title_fmt=".2g", title_kwargs={"fontsize": 15})
+fig.savefig(os.path.join(outdir,"alpha2_medians_together.png"))
+plt.close(fig)
+
+fig = corner.corner(samples_b1, labels=plt_labels,
+                    quantiles=[0.16, 0.5, 0.84],
+                    show_titles=True, title_fmt=".2g", title_kwargs={"fontsize": 15})
+fig.savefig(os.path.join(outdir,"beta1_medians_together.png"))
+plt.close(fig)
+
+fig = corner.corner(samples_b2, labels=plt_labels,
+                    quantiles=[0.16, 0.5, 0.84],
+                    show_titles=True, title_fmt=".2g", title_kwargs={"fontsize": 15})
+fig.savefig(os.path.join(outdir,"beta2_medians_together.png"))
+plt.close(fig)
+
+fig = plt.figure()
+ax = plt.gca()
+xs = [ x[0] for x in samples_a1 ]
+ys = [ x[1] for x in samples_a1 ]
+ax.plot( xs, ys, 'o', c='blue', alpha=0.75, markeredgecolor='none')
+#ax.set_yscale('log')
+#ax.set_xscale('log')
+fig.savefig(os.path.join(outdir,"loglog_alpha1_by_2_medians_together.png"))
+plt.show()
+plt.close(fig)
 
 ##This takes the full paths specified in the arguments and does two things
 ##First, it parses out the type of model it is, i.e. (1,0) (3,2) etc.
@@ -85,7 +137,7 @@ for file in filenames:
 #    #stuff.otherstuff.modelInfoHere.whatever.could.be.longer
 #    segment = filename.split('.')[2]
 #    #and within modelInfoHere:
-#    #.something-alphas-betasStuff-could-be-long
+#    #.something-alphas-betasStuff-could-be-longer
 #    #Important to note that 'betas' is assumed to take only one digit
 #    segment = segment.split('-')
 #    alphas = segment[1]
