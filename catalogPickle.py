@@ -15,12 +15,19 @@ fit_models = {}
 if debug:
     print("[debug] Pricessing "+str(len(sys.argv)-1)+" filenames to determine models needing plotting...")
 
-def openPickle(filename):
-    file = filename
-    t_pkl = open(file, 'rb')
-    params = pickle.load(t_pkl)
-    t_pkl.close()
-    return params
+def getDict(filename):
+    file = open(filename,'r')
+    header = file.readline()
+    header_list = header.split()
+    print(header_list)
+    catalog = {}
+    for line in file:
+        split_line = line.split()
+        catalog[split_line[0]] = []
+        for i in range(1,len(split_line)):
+            catalog[split_line[0]].append(split_line[i])
+    return catalog
+
 
 def savePickle(pkl,filename):
     file = open(filename, 'wb')
@@ -28,36 +35,7 @@ def savePickle(pkl,filename):
     file.close()
     return rval
 
-def doubleMADsfromMedian(y,thresh=4):
-    # warning: this function does not check for NAs
-    # nor does it address issues when
-    # more than 50% of your data have identical values
-    m = np.median(y)
-    abs_dev = np.abs(y - m)
-    left_mad = np.median(abs_dev[y <= m])
-    right_mad = np.median(abs_dev[y >= m])
-    y_mad = left_mad * np.ones(len(y))
-    y_mad[y > m] = right_mad
-    modified_z_score = 0.6745 * abs_dev / y_mad
-    modified_z_score[y == m] = 0
-    return np.where(modified_z_score < thresh)[0]
-
-def cleanLocMin(filename):
-    coeff = openPickle(filename)
-    ndims = coeff.shape[0]
-    nwalkers = coeff.shape[1]
-    nsteps = coeff.shape[2]
-    samples = np.swapaxes(copy.copy( coeff[:, :, nsteps/2:]).reshape((ndims, -1), order='F'), axis1=0, axis2=1)
-    for i in range(3):
-        #print(len(samples[:,i]))
-        keep_indecies = doubleMADsfromMedian(samples[:,i],thresh=3.0)
-        samples = samples[keep_indecies,:]
-    #print(samples)
-    #print(coeff)
-    return samples
-
-
-outdir = "doubleMADsTrimmed"
+outdir = "catalogs"
 pwd = os.getcwd()
 outdir = os.path.join(pwd,outdir)
 try:
@@ -68,19 +46,11 @@ except:
 filenames = sys.argv[1:]
 i = 0
 numfiles = len(filenames)
-log = open('trim.py.log','w')
-log.seek(0)
-
 for file in filenames:
     print("["+str(i)+"/"+str(numfiles)+"]("+str(int(float(i)/float(numfiles)*100))+"%) "+os.path.basename(os.path.dirname(os.path.abspath(file))) + " " + os.path.basename(file))
     #print("trying to save to:" + os.path.join(outdir,os.path.basename(file)))
-    savePickle(cleanLocMin(file), os.path.join(outdir,os.path.basename(file)))
-    #cleanLocMin(file)
-    log.write(file)
-    log.write('\n')
+    savePickle(getDict(file), os.path.join(outdir,os.path.basename(file))+'.pkl')
     i += 1
-log.truncate()
-log.close()
 
 ##This takes the full paths specified in the arguments and does two things
 ##First, it parses out the type of model it is, i.e. (1,0) (3,2) etc.

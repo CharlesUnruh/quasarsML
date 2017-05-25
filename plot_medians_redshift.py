@@ -10,8 +10,8 @@ import os.path
 import corner
 import copy
 import sys
-
-
+import pandas
+from astropy.io import fits
 
 #Set this to True for some debug output
 debug = False
@@ -22,6 +22,15 @@ if len(sys.argv) < 2:
 fit_models = {}
 if debug:
     print("[debug] Pricessing "+str(len(sys.argv)-1)+" filenames to determine models needing plotting...")
+
+def openCatalog(filename):
+    data = fits.open(filename)
+    return data[1].data
+
+def getCatalogValue(catalog,ID,field):
+    intermediate = catalog[field]
+    idx = np.where( catalog['ID']==ID )[0]
+    return intermediate[idx]
 
 def openPickle(filename):
     file = filename
@@ -61,6 +70,8 @@ def cleanLocMin(filename):
     return samples
 
 
+catalog = openCatalog('catalogs/combinedCatalog.fits')
+
 outdir = "median_plots"
 pwd = os.getcwd()
 outdir = os.path.join(pwd,outdir)
@@ -83,7 +94,6 @@ samples_a1 = []
 samples_a2 = []
 samples_b1 = []
 samples_b2 = []
-catalog = openPickle("catalogs/catalog.txt.pkl")
 ids = []
 redshifts = []
 
@@ -111,9 +121,20 @@ for file in filenames:
 
     id = os.path.basename(file).split('-')[0]
     ids.append(id)
-    redshifts.append(catalog[id][14])#classy.getClass(catalog[id][14]))#14])
-    ug.append(catalog[id][4])
-    iz.append(catalog[id][7])
+    redshift = getCatalogValue(catalog,int(id),r'REDSHIFT')
+    #redshift = getCatalogValue(catalog,int(id),r'rN')
+    # need to decompose redshift = getCatalogValue(catalog,int(id),r'TARGET_FLAG_TARGET')
+    #redshift = getCatalogValue(catalog,int(id),r'LOGLBOL')
+    if len(redshift) == 0:
+        redshift = -1
+    else:
+        redshift = redshift[0]
+    #redshift = getCatalogValue(catalog,int(id),r'rN')
+    redshifts.append(redshift)
+    #redshifts.append(classy.getClass(redshift))
+    #classy.getClass(catalog[id][14]))#14]
+    #ug.append(catalog[id][4])
+    #iz.append(catalog[id][7])
     i += 1
 #print(redshifts)
 
@@ -141,15 +162,43 @@ for file in filenames:
 #fig.savefig(os.path.join(outdir,"beta2_medians_together.png"))
 #plt.close(fig)
 
+def isDefault(x):
+    print(x)
+    x = float(x)
+    if x == -1 or x == -9.9:
+        print("true")
+        return True
+    return False
+
 fig = plt.figure()
 ax = plt.gca()
 xs = [ x[0] for x in samples_a1 ]
 ys = [ x[1] for x in samples_a1 ]
 cs = redshifts
 jet = plt.get_cmap('jet')#'tab20')
+#jet = plt.get_cmap('rainbow')#'tab20')
 
-cax = ax.scatter( xs, ys, c=cs, alpha=0.5, edgecolors='none', cmap=jet )
+black_x = []
+black_y = []
+black_c = []
+color_x = []
+color_y = []
+color_c = []
+for i in range(len(xs)):
+    if isDefault(cs[i]):
+        black_x.append(xs[i])
+        black_y.append(ys[i])
+        black_c.append('black')
+    else:
+        color_x.append(xs[i])
+        color_y.append(ys[i])
+        color_c.append(cs[i])
+
+cax = ax.scatter( color_x, color_y, c=color_c, alpha = 0.2, edgecolors='none', cmap=jet )
+#cax = ax.scatter( xs, ys, c=cs, alpha=0.2, edgecolors='none', cmap=jet )
+#cax = ax.scatter( xs, cs, c=ys, alpha=0.2, edgecolors='none', cmap=jet )
 cbar = fig.colorbar(cax)
+ax.scatter( black_x, black_y, c=black_c, alpha=0.2, edgecolors='none' )
 
 ax.set_title(r'~2200 AGNs and other Variables, CARMA 2-1, log($\alpha_1$) vs.log($\alpha_2$) with redshift')
 ax.set_xlabel(r'log($\alpha_1$)')
@@ -161,42 +210,42 @@ fig.savefig(os.path.join(outdir,"loglog_alpha1_by_2_redshift_medians_together.pn
 plt.show()
 plt.close(fig)
 
-fig = plt.figure()
-ax = plt.gca()
-xs = [ x[0] for x in samples_a1 ]
-ys = [ x[1] for x in samples_a1 ]
-cs = ug
-jet = plt.get_cmap('jet')#'tab20')
+#fig = plt.figure()
+#ax = plt.gca()
+#xs = [ x[0] for x in samples_a1 ]
+#ys = [ x[1] for x in samples_a1 ]
+#cs = ug
+#jet = plt.get_cmap('jet')#'tab20')
 
-cax = ax.scatter( xs, ys, c=cs, alpha=0.5, edgecolors='none', cmap=jet )
-cbar = fig.colorbar(cax)
+#cax = ax.scatter( xs, ys, c=cs, alpha=0.5, edgecolors='none', cmap=jet )
+#cbar = fig.colorbar(cax)
 
-ax.set_title(r'~2200 AGNs and other Variables, CARMA 2-1, log($\alpha_1$) vs.log($\alpha_2$) with U-G Color Difference')
-ax.set_xlabel(r'log($\alpha_1$)')
-ax.set_ylabel(r'log($\alpha_2$)')
-
-#ax.set_yscale('log')
-#ax.set_xscale('log')
-fig.savefig(os.path.join(outdir,"loglog_alpha1_by_2_green_medians_together.png"))
-plt.show()
-plt.close(fig)
-
-fig = plt.figure()
-ax = plt.gca()
-xs = [ x[0] for x in samples_a1 ]
-ys = [ x[1] for x in samples_a1 ]
-cs = iz
-jet = plt.get_cmap('jet')#'tab20')
-
-cax = ax.scatter( xs, ys, c=cs, alpha=0.5, edgecolors='none', cmap=jet )
-cbar = fig.colorbar(cax)
-
-ax.set_title(r'~2200 AGNs and other Variables, CARMA 2-1, log($\alpha_1$) vs.log($\alpha_2$) with I-Z Color Difference')
-ax.set_xlabel(r'log($\alpha_1$)')
-ax.set_ylabel(r'log($\alpha_2$)')
+#ax.set_title(r'~2200 AGNs and other Variables, CARMA 2-1, log($\alpha_1$) vs.log($\alpha_2$) with U-G Color Difference')
+#ax.set_xlabel(r'log($\alpha_1$)')
+#ax.set_ylabel(r'log($\alpha_2$)')
 
 #ax.set_yscale('log')
 #ax.set_xscale('log')
-fig.savefig(os.path.join(outdir,"loglog_alpha1_by_2_iz_medians_together.png"))
-plt.show()
-plt.close(fig)
+#fig.savefig(os.path.join(outdir,"loglog_alpha1_by_2_green_medians_together.png"))
+#plt.show()
+#plt.close(fig)
+
+#fig = plt.figure()
+#ax = plt.gca()
+#xs = [ x[0] for x in samples_a1 ]
+#ys = [ x[1] for x in samples_a1 ]
+#cs = iz
+#jet = plt.get_cmap('jet')#'tab20')
+
+#cax = ax.scatter( xs, ys, c=cs, alpha=0.5, edgecolors='none', cmap=jet )
+#cbar = fig.colorbar(cax)
+
+#ax.set_title(r'~2200 AGNs and other Variables, CARMA 2-1, log($\alpha_1$) vs.log($\alpha_2$) with I-Z Color Difference')
+#ax.set_xlabel(r'log($\alpha_1$)')
+#ax.set_ylabel(r'log($\alpha_2$)')
+#
+##ax.set_yscale('log')
+#ax.set_xscale('log')
+#fig.savefig(os.path.join(outdir,"loglog_alpha1_by_2_iz_medians_together.png"))
+#plt.show()
+#plt.close(fig)
